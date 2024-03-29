@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -25,29 +26,9 @@ func analyzeVRAMDump() {
 
 	counter := 0
 	for i := 0; i < len(byteDump)-16; i += 16 {
-
-		fmt.Printf("0x%.4x: %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x\n",
-			counter,
-			byteDump[i],
-			byteDump[i+1],
-			byteDump[i+2],
-			byteDump[i+3],
-			byteDump[i+4],
-			byteDump[i+5],
-			byteDump[i+6],
-			byteDump[i+7],
-			byteDump[i+8],
-			byteDump[i+9],
-			byteDump[i+10],
-			byteDump[i+11],
-			byteDump[i+12],
-			byteDump[i+13],
-			byteDump[i+14],
-			byteDump[i+15],
-		)
-
+		chunk := byteDump[i : i+16]
+		fmt.Printf("0x%.4x: %s\n", counter, formatByteLine16(chunk))
 		counter += 16
-
 	}
 	fmt.Println("sizeof slice:", len(byteDump))
 
@@ -67,30 +48,45 @@ func SlicesEqual(a, b []byte) bool {
 	return true
 }
 
-func fetchProbableSpriteTile() error {
+// returns the specific chunk of where a specific sprite may be
+func fetchProbableSpriteTile() ([]byte, error) {
 	romContent, err := os.ReadFile("KouchuOujaMushiking_J.gba")
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	fmt.Println("Length of rom:", len(romContent))
 
 	target := []byte{0x3e, 0xdb, 0x40, 0xc0, 0x0e, 0xe3, 0x0e, 0xa8, 0x40, 0x44, 0x55, 0x00, 0x44, 0x34, 0x00, 0x24}
 
+	// parse bytes 16 at a time
 	for i := 0; i < len(romContent)-16; i++ {
 		compareString := romContent[i : i+16]
 		if SlicesEqual(compareString, target) {
 			fmt.Printf("Found bytes %s at index %d\n", target, i)
-			break
+
+			return romContent[i : i+16*15], nil
 		}
 	}
 
-	return nil
+	return nil, errors.New("Not Found")
+}
+
+func formatByteLine16(b []byte) string {
+	if len(b) != 16 {
+		return ""
+	}
+	return fmt.Sprintf("%.2x%.2x %.2x%.2x %.2x%.2x %.2x%.2x %.2x%.2x %.2x%.2x %.2x%.2x %.2x%.2x",
+		b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15])
 }
 
 func main() {
-	err := fetchProbableSpriteTile()
+	spriteChunk, err := fetchProbableSpriteTile()
 	if err != nil {
 		panic(err)
+	}
+
+	fmt.Println("The Sprite Chunk")
+	for i := 0; i < len(spriteChunk)-16; i += 16 {
+		chunk := spriteChunk[i : i+16]
+		fmt.Printf("%s\n", formatByteLine16(chunk))
 	}
 }
